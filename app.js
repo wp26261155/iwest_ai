@@ -11,7 +11,39 @@ const SAMPLE_TASKS = [
 ];
 
 let tasks = [];
-let weatherByRegion = {};   // 03 단원에서 지역별 날씨를 넣음
+let weatherByRegion = {};
+
+async function loadWeather() {
+  const status = document.getElementById('weatherStatus');
+  const testWind = new URLSearchParams(window.location.search).get('test') === 'wind';
+  const testNotice = testWind ? '시험 모드: 풍속 12m/s 적용 · ' : '';
+  const regions = Object.keys(REGIONS);
+  const failed = new Set();
+  status.textContent = testNotice + '오늘 날씨를 불러오는 중입니다.';
+
+  await Promise.all(regions.map(async (region) => {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10000);
+    try {
+      const response = await fetch(buildWeatherUrl(region), { signal: controller.signal });
+      if (!response.ok) throw new Error('날씨 요청 실패');
+      const weather = parseWeather(await response.json(), testWind);
+      if (!weather) throw new Error('날씨 값 누락');
+      weatherByRegion[region] = weather;
+      renderTasks();
+    } catch (error) {
+      failed.add(region);
+    } finally {
+      clearTimeout(timeout);
+    }
+  }));
+
+  const count = Object.keys(weatherByRegion).length;
+  const failureNotice = failed.size
+    ? ' · 불러오기 실패: ' + regions.filter(region => failed.has(region)).join(', ') + ' (새로고침해 다시 시도해 주세요.)'
+    : '';
+  status.textContent = testNotice + '오늘 날씨 ' + count + '/4개 지역 확인' + failureNotice;
+}
 
 function loadTasks() {
   const saved = JSON.parse(localStorage.getItem('wx_added') || '[]');
@@ -62,3 +94,4 @@ function addTask(e) {
 document.getElementById('taskForm').addEventListener('submit', addTask);
 loadTasks();
 renderTasks();
+loadWeather();
