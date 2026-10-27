@@ -17,6 +17,7 @@
 - app.js     : 화면 동작 (목록 그리기, 일정 추가)
 - config.js  : Supabase 주소 · 공개용 키 두 줄
 - setup.sql  : Supabase 표 · 제약 · 공개 조회/추가 정책 · 가상 초기 데이터
+- api/kma.js : Vercel 서버 API (DB 일정 · 기상청 날씨 · 판단 조회)
 - PRD.md · AGENTS.md · CLAUDE.md · README.md : 문서
 
 ## 작업 방식
@@ -30,3 +31,4 @@
 - 가상 데이터만 사용한다. 실제 이름 · 연락처 · 기관 내부 자료를 넣지 않는다.
 - 사용자가 입력한 글자는 textContent 로 표시한다.
 - 비밀 키는 코드 · 채팅 · GitHub 에 넣지 않는다.
+- 기상청 KMA_KEY는 Vercel 서버 환경변수에서만 읽고 브라우저·응답·로그에 노출하지 않는다. 서버 API는 순수 JavaScript로 작성한다.

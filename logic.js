@@ -11,6 +11,69 @@ const REGIONS = {
   '보령': { latitude: 36.33, longitude: 126.61 },
 };
 
+// 각 지역 중심부를 대표하는 기상청 단기예보 격자
+const KMA_GRIDS = {
+  '세종': { nx: 66, ny: 103 },
+  '대전': { nx: 67, ny: 100 },
+  '태안': { nx: 48, ny: 109 },
+  '보령': { nx: 54, ny: 100 },
+};
+
+function getKmaForecastContext(now = new Date()) {
+  const koreanTime = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+  const previousDay = new Date(koreanTime.getTime() - 24 * 60 * 60 * 1000);
+  // 하루 전체를 비교할 수 있도록 전날 23시 발표의 오늘 예보를 사용한다.
+  return {
+    date: koreanTime.toISOString().slice(0, 10),
+    baseDate: previousDay.toISOString().slice(0, 10).replace(/-/g, ''),
+    baseTime: '2300',
+  };
+}
+
+function buildKmaUrl(region, serviceKey, context) {
+  const grid = KMA_GRIDS[region];
+  if (!grid || !Object.hasOwn(KMA_GRIDS, region)) throw new Error('지원하지 않는 지역');
+  // 공공데이터포털의 일반 키와 URL 인코딩 키 모두 한 번만 인코딩한다.
+  const key = decodeURIComponent(serviceKey.trim());
+  const url = new URL('https://apis.data.go.kr/1360000/VilageFcstInfoService_2.0/getVilageFcst');
+  url.search = new URLSearchParams({
+    serviceKey: key, dataType: 'JSON', pageNo: '1', numOfRows: '1000',
+    base_date: context.baseDate, base_time: context.baseTime, nx: grid.nx, ny: grid.ny,
+  }).toString();
+  return url.toString();
+}
+
+function parseKmaWeather(data, date) {
+  const response = data && data.response;
+  if (!response || response.header?.resultCode !== '00') return null;
+  const items = response.body?.items?.item;
+  if (!Array.isArray(items)) return null;
+  const day = date.replace(/-/g, '');
+  const hourly = { TMP: new Map(), WSD: new Map(), POP: new Map() };
+  const dailyMax = [];
+  for (const item of items) {
+    if (!item || item.fcstDate !== day) continue;
+    if (typeof item.fcstValue !== 'string' && typeof item.fcstValue !== 'number') continue;
+    if (String(item.fcstValue).trim() === '') continue;
+    const value = Number(item.fcstValue);
+    if (!Number.isFinite(value) || value === -999 || value === -998) continue;
+    if (item.category === 'TMX') {
+      dailyMax.push(value);
+    } else if (Object.hasOwn(hourly, item.category) && /^(0\d|1\d|2[0-3])00$/.test(item.fcstTime)) {
+      if (item.category === 'WSD' && value < 0) continue;
+      if (item.category === 'POP' && (value < 0 || value > 100)) continue;
+      hourly[item.category].set(item.fcstTime, value);
+    }
+  }
+  // 일부 시간만 받은 응답을 오늘 하루 최댓값으로 오인하지 않는다.
+  if (!Object.values(hourly).every(values => values.size === 24)) return null;
+  return {
+    tempMax: Math.max(...(dailyMax.length ? dailyMax : hourly.TMP.values())),
+    windMax: Math.max(...hourly.WSD.values()),
+    rainProb: Math.max(...hourly.POP.values()),
+  };
+}
+
 function buildWeatherUrl(region) {
   const point = REGIONS[region];
   const url = new URL('https://api.open-meteo.com/v1/forecast');
@@ -72,4 +135,7 @@ function makeJudgmentMarkdown(headers, rows) {
   ].join('\n');
 }
 
-if (typeof module !== 'undefined') module.exports = { RULES, REGIONS, buildWeatherUrl, parseWeather, judge, makeJudgmentMarkdown };
+if (typeof module !== 'undefined') module.exports = {
+  RULES, REGIONS, buildWeatherUrl, parseWeather, judge, makeJudgmentMarkdown,
+  KMA_GRIDS, getKmaForecastContext, buildKmaUrl, parseKmaWeather,
+};
