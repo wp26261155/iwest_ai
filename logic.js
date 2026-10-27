@@ -48,4 +48,28 @@ function judge(kind, w) {
   return { level: 'ok', text: '진행' };
 }
 
-if (typeof module !== 'undefined') module.exports = { RULES, REGIONS, buildWeatherUrl, parseWeather, judge };
+// 화면에서 읽은 표 데이터를 받아 마크다운 문자열만 만든다.
+function makeJudgmentMarkdown(headers, rows) {
+  function escapeCell(value) {
+    return String(value)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/[\\`*_{}\[\]]/g, '\\$&')
+      .replace(/\|/g, '\\|')
+      .replace(/\r\n|\r|\n/g, '<br>');
+  }
+  const tableRow = cells => '| ' + cells.map(escapeCell).join(' | ') + ' |';
+  return [
+    '# 오늘 판단',
+    '',
+    tableRow(headers),
+    tableRow(headers.map(() => '---')),
+    ...rows.map(tableRow),
+    '',
+    '판단 기준 (교육용 가상 기준): 고소 작업 최대 풍속 ' + RULES.wind + 'm/s 이상 → 중지 검토 · 최대 강수확률 ' + RULES.rain + '% 이상 → 우천 주의 · 최고 기온 ' + RULES.heat + '℃ 이상 → 폭염 휴식 (실내는 영향 없음, 여러 조건에 해당하면 강풍 → 폭염 → 우천 순서)',
+    '',
+  ].join('\n');
+}
+
+if (typeof module !== 'undefined') module.exports = { RULES, REGIONS, buildWeatherUrl, parseWeather, judge, makeJudgmentMarkdown };

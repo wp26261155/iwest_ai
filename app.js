@@ -130,6 +130,29 @@ function addTask(e) {
   renderTasks();
 }
 
+function saveJudgmentMarkdown() {
+  const table = document.getElementById('taskList').closest('table');
+  const headers = Array.from(table.querySelectorAll('thead th'), cell => cell.textContent);
+  const rows = Array.from(table.querySelectorAll('tbody tr'), row =>
+    Array.from(row.cells, cell => cell.textContent));
+  const markdown = makeJudgmentMarkdown(headers, rows);
+  const parts = new Intl.DateTimeFormat('en', {
+    timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit',
+  }).formatToParts(new Date());
+  const datePart = type => parts.find(part => part.type === type).value;
+  const date = datePart('year') + '-' + datePart('month') + '-' + datePart('day');
+  const blob = new Blob([markdown], { type: 'text/markdown;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = '현장일정_판단_' + date + '.md';
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+document.getElementById('saveMarkdownButton').addEventListener('click', saveJudgmentMarkdown);
 document.getElementById('taskForm').addEventListener('submit', addTask);
 loadTasks();
 renderTasks();
